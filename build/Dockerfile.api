@@ -5,7 +5,9 @@ RUN apt-get update && \
     apt-get install -y git \
                         gcc \
                         libc-dev \
-                        libssl1.1
+                        libssl1.1 \
+                        libsecp256k1-dev \
+                        libsodium-dev
 RUN git clone --branch v${VER} https://github.com/toncenter/ton-http-api.git
 WORKDIR /ton-http-api/ton-http-api
 RUN pip install --no-cache-dir -r requirements.txt

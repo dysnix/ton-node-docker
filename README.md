@@ -89,9 +89,54 @@ Then, just wait until your node is synchronised with the chain.
 
 To interact with the API, refer to the [Toncenter API reference](https://toncenter.com/api/v2/).
 
+## Removing public access from TON Liteserver endpoint
+
+1. Prefix port-forwarding of TON node in `docker-compose.yaml` with "127.0.0.1" so it looks like
+```yaml
+ports:
+  - 127.0.0.1:${NODE_CONSOLE_PORT}:${NODE_CONSOLE_PORT}
+```
+
+2. For TON HTTP API to be able to communicate with liteserver endpoint through internal network you need to change files in `config/api-config` depending on
+network and mode.
+
+3. Find `liteservers` section in config file.
+
+4. Using `config/api-config/ip2dec.py` convert desired private IP address to decimal representation.
+In `docker-compose.yaml` TON node container IP address is set to `172.18.0.2`, so it decimal value will be `-1408106494`.
+
+5. Change the value of `.liteservers.ip` property inside config file to converted IP address from previous command.
+
+6. To apply changes, restart TON HTTP API using `docker compose restart ton-api`.
+
 ## Updating the node
 
 Just lift the release version in the `NODE_VERSION` variable of the `.env` file.
+
+## Bootstrapping from snapshot
+
+1. Run all steps mentioned above so your node is up and running.
+
+2. Stop all containers using `docker compose down`
+
+3. Download latest snapshot from https://dump.ton.org
+
+4. Backup old db folder, i.e. you can rename it `mv db db_old`
+
+5. Create new db folder `mkdir db`
+
+6. Unpack downloaded archive to new `db` folder
+
+7. Using following command copy some required files from `db_old` to `db` folder
+
+```
+cd db_old
+cp -r server* client* liteserver* keyring ton-global.config db/
+```
+
+8. Start all services with `docker compose up -d`
+
+9. Wait for node to be synced.
 
 ## Troubleshooting
 

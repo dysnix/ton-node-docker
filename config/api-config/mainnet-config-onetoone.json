@@ -357,7 +357,7 @@
   },
   "liteservers": [
   	{
-    	"ip": 2886860802,
+    	"ip": LITESERVER_IP,
       "port": 43679,
       "id": {
         "@type": "pub.ed25519",

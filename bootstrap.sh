@@ -20,6 +20,11 @@ set_http_api_key () {
   sed -i "s~NODEAPIKEY~$NODE_API_KEY~g" ${API_CONF_VOLUME}/${API_NETWORK}-config-${API_MODE}.json
 }
 
+set_liteserver_ip () {
+  DECIMAL_IP=$(docker run --rm -v $API_CONF_VOLUME:/conf ton-api -c "python /conf/ip2dec.py ${API_LITESERVER_IP:-TON_NODE_IP}")
+  sed -i "s~LITESERVER_IP~$DECIMAL_IP~g" ${API_CONF_VOLUME}/${API_NETWORK}-config-${API_MODE}.json
+}
+
 deploy_api () {
   docker compose up -d ton-api
 }
@@ -30,4 +35,5 @@ build_all
 add_node_assets
 deploy_node
 set_http_api_key
+set_liteserver_ip
 deploy_api

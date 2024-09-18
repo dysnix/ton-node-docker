@@ -7,12 +7,34 @@ services:
       dockerfile: Dockerfile.node
       args:
         VER: ${NODE_VERSION}
+    command:
+      - /usr/bin/ton/validator-engine/validator-engine
+      - -c
+      - /var/ton-work/db/config.json
+      - -C
+      - /var/ton-work/db/ton-global.config
+      - --db
+      - /var/ton-work/db
+      # you can set higher count of threads depending on your needs
+      # - --threads
+      # - "31"
+      # increase if you are using 3-month snapshot
+      # - --state-ttl
+      # - "7776000"
+      # - --archive-ttl
+      # - "86400"
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "40"
     image: ton-node:${NODE_VERSION}
     restart: always
     ports:
-      - ${NODE_CONSOLE_PORT}:${NODE_CONSOLE_PORT}
-      - ${NODE_CONSOLE_PORT}:${NODE_CONSOLE_PORT}/udp
-      - ${NODE_LITESERVER_PORT}:${NODE_LITESERVER_PORT}
+      - 127.0.0.1:${NODE_CONSOLE_PORT}:${NODE_CONSOLE_PORT}
+      - 127.0.0.1:${NODE_CONSOLE_PORT}:${NODE_CONSOLE_PORT}/udp
+      - 127.0.0.1:${NODE_LITESERVER_PORT}:${NODE_LITESERVER_PORT}
+      # leave liteserver udp port public for p2p communication
       - ${NODE_LITESERVER_PORT}:${NODE_LITESERVER_PORT}/udp
     volumes:
       - ${NODE_STATE_VOLUME}:/var/ton-work/db
@@ -28,19 +50,30 @@ services:
         ipv4_address: 172.18.0.2
 
   ton-api:
+    depends_on:
+      - redis
+      - ton-node
     build:
       context: build
       dockerfile: Dockerfile.api
       args:
         VER: ${API_VERSION}
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "10"
     image: ton-api
     restart: always
     ports:
-      - 8081:8081
+      - 127.0.0.1:8081:8081
     volumes:
       - ${API_CONF_VOLUME}:/conf
     environment:
-      TON_API_CACHE_ENABLED: ${API_CACHE_ENABLED}
+      TON_API_CACHE_ENABLED: "${API_CACHE_ENABLED}"
+      TON_API_CACHE_REDIS_TIMEOUT: ${API_CACHE_REDIS_TIMEOUT}
+      TON_API_CACHE_REDIS_ENDPOINT: ${API_CACHE_REDIS_ENDPOINT}
+      TON_API_CACHE_REDIS_PORT: ${API_CACHE_REDIS_PORT}
       TON_API_LOGS_JSONIFY: ${API_LOGS_JSONIFY}
       TON_API_LOGS_LEVEL: ${API_LOGS_LEVEL}
       TON_API_TONLIB_LITESERVER_CONFIG: ${API_TONLIB_LITESERVER_CONFIG}
@@ -49,10 +82,41 @@ services:
       TON_API_GET_METHODS_ENABLED: ${API_GET_METHODS_ENABLED}
       TON_API_JSON_RPC_ENABLED: ${API_JSON_RPC_ENABLED}
       TON_API_ROOT_PATH: ${API_ROOT_PATH}
-    command: -c "gunicorn -k uvicorn.workers.UvicornWorker -w 1 --bind 0.0.0.0:8081 pyTON.main:app"
+      TON_API_WEBSERVERS_WORKERS: ${API_WEBSERVERS_WORKERS}
+    command:
+      - -c
+      - gunicorn -k uvicorn.workers.UvicornWorker -w ${API_WEBSERVERS_WORKERS} --bind 0.0.0.0:8081 pyTON.main:app
+    healthcheck:
+      test: curl -fsS http://127.0.0.1:8081${API_ROOT_PATH}healthcheck || exit 1
+      interval: 15s
+      timeout: 3s
+      retries: 12
     networks:
       ton-network:
         ipv4_address: 172.18.0.3
+
+  nginx:
+    image: nginx:stable
+    restart: always
+    ports:
+      - ${NGINX_PORT}:${NGINX_PORT}
+    volumes:
+      - ${NGINX_CONF_VOLUME}/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+    environment:
+      NGINX_HOST: ${NGINX_HOST}
+      NGINX_PORT: ${NGINX_PORT}
+      NGINX_PROXY_HOST: http://ton-api
+      NGINX_PROXY_PORT: 8081
+    networks:
+      ton-network:
+        ipv4_address: 172.18.0.4
+
+  redis:
+    image: redis:7.2
+    restart: always
+    networks:
+      ton-network:
+        ipv4_address: 172.18.0.5
 
 networks:
   ton-network:
